@@ -124,6 +124,7 @@ class Resque_Redis
 			}
 			
 			$this->driver = new Credis_Client($host, $port);
+			$this->driver->setReadTimeout(5000);
 			if (isset($password)){
 				$this->driver->auth($password);
 			}

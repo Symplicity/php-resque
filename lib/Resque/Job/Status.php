@@ -12,7 +12,7 @@ class Resque_Job_Status
 	const STATUS_RUNNING = 2;
 	const STATUS_FAILED = 3;
 	const STATUS_COMPLETE = 4;
-	const STATUS_EXPIRE_SECS = 2419200;
+	const STATUS_EXPIRE_SECS = 600;
 
 	/**
 	 * @var string The ID of the job this status class refers back to.
@@ -56,9 +56,9 @@ class Resque_Job_Status
 			'status' => self::STATUS_WAITING,
 			'updated' => $now,
 			'started' => $now,
+            'timequeued' => $now
 		);
 		Resque::redis()->set('job:' . $id . ':status', json_encode($statusPacket));
-		Resque::redis()->set('job:' . $id . ':status:timequeued', $now);
 	}
 
 	/**
@@ -87,7 +87,7 @@ class Resque_Job_Status
 	 *
 	 * @param int The status of the job (see constants in Resque_Job_Status)
 	 */
-	public function update($status, $data)
+	public function update($status, $data, $exception=null)
 	{
 		if(!$this->isTracking()) {
 			return;
@@ -96,26 +96,28 @@ class Resque_Job_Status
 		$now = time();
 
 		$statusPacket = array(
-			'status' => $status,
+			'status'  => $status,
 			'updated' => $now,
 			'data'    => $data
 		);
-		Resque::redis()->set((string)$this, json_encode($statusPacket));
-	
+
 		if($status === self::STATUS_RUNNING) {
-			Resque::redis()->set((string)$this . ':timestarted', $now);
+            $statusPacket['timestarted'] = $now;
 		}
 
-		// Expire the status for completed jobs after 30 days
-		if(in_array($status, self::$completeStatuses)) {
-			Resque::redis()->set((string)$this . ':timecompleted', $now);
-			Resque::redis()->expire((string)$this, self::STATUS_EXPIRE_SECS);
-			Resque::redis()->expire((string)$this . ':timequeued', self::STATUS_EXPIRE_SECS);
-			Resque::redis()->expire((string)$this . ':timestarted', self::STATUS_EXPIRE_SECS);
-			Resque::redis()->expire((string)$this . ':timecompleted', self::STATUS_EXPIRE_SECS);
-			Resque::redis()->expire((string)$this . ':errorcode', self::STATUS_EXPIRE_SECS);
-		}
-	}
+        if ($status == Resque_Job_Status::STATUS_FAILED && !empty($exception)) {
+            $statusPacket['errorcode'] = $exception->getCode();
+            $statusPacket['error'] = $exception->getMessage();
+        }
+
+        if(in_array($status, self::$completeStatuses)) {
+            $statusPacket['timecompleted'] = $now;
+            // Expire the status for completed jobs after 30 days
+            Resque::redis()->setex((string)$this, self::STATUS_EXPIRE_SECS, json_encode($statusPacket));
+        } else {
+            Resque::redis()->set((string)$this, json_encode($statusPacket));
+        }
+    }
 
 	/**
 	 * Fetch the status for the job being monitored.

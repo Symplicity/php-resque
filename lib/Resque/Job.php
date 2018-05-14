@@ -119,14 +119,14 @@ class Resque_Job
 	 *
 	 * @param int $status Status constant from Resque_Job_Status indicating the current status of a job.
 	 */
-	public function updateStatus($status)
+	public function updateStatus($status, $exception=null)
 	{
 		if(empty($this->payload['id'])) {
 			return;
 		}
 
 		$statusInstance = new Resque_Job_Status($this->payload['id']);
-		$statusInstance->update($status, $this->currentData);
+		$statusInstance->update($status, $this->currentData, $exception);
 		if ($status == Resque_Job_Status::STATUS_COMPLETE ||
 			$status == Resque_Job_Status::STATUS_FAILED) {
 			$this->currentData = null;
@@ -221,10 +221,10 @@ class Resque_Job
 		return true;
 	}
 
-	public function onKill() {
+	public function onKill($signo) {
 		$instance = $this->getInstance();
 		if(method_exists($instance, 'onKill')){
-			$instance->onKill();
+			$instance->onKill($signo);
 		}
 	}
 
@@ -240,7 +240,7 @@ class Resque_Job
 			'job' => $this,
 		));
 
-		$this->updateStatus(Resque_Job_Status::STATUS_FAILED);
+		$this->updateStatus(Resque_Job_Status::STATUS_FAILED, $exception);
 		Resque_Failure::create(
 			$this->payload,
 			$exception,

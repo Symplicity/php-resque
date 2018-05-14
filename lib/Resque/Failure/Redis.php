@@ -29,7 +29,6 @@ class Resque_Failure_Redis implements Resque_Failure_Interface
 		$data->worker = (string)$worker;
 		$data->queue = $queue;
 		$data = json_encode($data);
-		Resque::redis()->set('job:' . $payload["id"] . ':status:errorcode', $exception->getCode());
 		Resque::redis()->rpush('failed', $data);
 	}
 }

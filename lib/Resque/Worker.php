@@ -301,9 +301,11 @@ class Resque_Worker
 				return $job;
 			}
 		} else {
-			foreach($queues as $queue => $maxRunning) {
+			$keys = array_keys($queues);
+			shuffle($keys);
+			foreach($keys as $queue) {
 				$this->logger->log(Psr\Log\LogLevel::INFO, 'Checking {queue} for jobs ' . $queue);
-				$job = Resque_Job::reserve($queue, $maxRunning);
+				$job = Resque_Job::reserve($queue, $queues[$queue]);
 				if($job) {
 					$this->logger->log(Psr\Log\LogLevel::INFO, 'Found job on {queue} ' . $queue);
 					return $job;
