@@ -1,4 +1,10 @@
 <?php
+
+class ConnectionException extends Exception
+{
+
+}
+
 /**
  * Wrap Credis to add namespace support and various helper methods.
  *
@@ -16,6 +22,7 @@ class Resque_Redis
 
     private $server;
     private $database;
+    private $driver;
 
 	/**
 	 * @var array List of all commands in Redis that supply a key as their
@@ -65,7 +72,8 @@ class Resque_Redis
 		'zscore',
 		'zremrangebyscore',
 		'sort',
-		'watch'
+		'watch',
+		'ping'
 	);
 	// sinterstore
 	// sunion
@@ -93,45 +101,63 @@ class Resque_Redis
 	    self::$defaultNamespace = $namespace;
 	}
 
+	/**
+	 * Resque_Redis constructor.
+	 * @param $server
+	 * @param null $database
+	 * @throws CredisException
+	 */
 	public function __construct($server, $database = null)
 	{
 		$this->server = $server;
 		$this->database = $database;
+		$this->connect();
+	}
 
-		if (is_array($this->server)) {
-			$this->driver = new Credis_Cluster($server);
-		}
-		else {
-			$port = null;
-			$password = null;
-			$host = $server;
+	/**
+	 * @throws CredisException
+	 */
+	public function connect()
+	{
+		try {
+			if (is_array($this->server)) {
+				$this->driver = new Credis_Cluster($this->server);
+			} else {
+				$port = null;
+				$password = null;
+				$host = $this->server;
 
-			// If not a UNIX socket path or tcp:// formatted connections string
-			// assume host:port combination.
-			if (strpos($server, '/') === false) {
-				$parts = explode(':', $server);
-				if (isset($parts[1])) {
-					$port = $parts[1];
+				// If not a UNIX socket path or tcp:// formatted connections string
+				// assume host:port combination.
+				if (strpos($this->server, '/') === false) {
+					$parts = explode(':', $this->server);
+					if (isset($parts[1])) {
+						$port = $parts[1];
+					}
+					$host = $parts[0];
+				} else {
+					if (strpos($this->server, 'redis://') !== false) {
+						// Redis format is:
+						// redis://[user]:[password]@[host]:[port]
+						list($userpwd, $hostport) = explode('@', $this->server);
+						$userpwd = substr($userpwd, strpos($userpwd, 'redis://') + 8);
+						list($host, $port) = explode(':', $hostport);
+						list($user, $password) = explode(':', $userpwd);
+					}
 				}
-				$host = $parts[0];
-			}else if (strpos($server, 'redis://') !== false){
-				// Redis format is:
-				// redis://[user]:[password]@[host]:[port]
-				list($userpwd,$hostport) = explode('@', $server);
-				$userpwd = substr($userpwd, strpos($userpwd, 'redis://')+8);
-				list($host, $port) = explode(':', $hostport);
-				list($user, $password) = explode(':', $userpwd);
-			}
-			
-			$this->driver = new Credis_Client($host, $port);
-			$this->driver->setReadTimeout(5000);
-			if (isset($password)){
-				$this->driver->auth($password);
-			}
-		}
 
-		if ($this->database !== null) {
-			$this->driver->select($database);
+				$this->driver = new Credis_Client($host, $port);
+				$this->driver->setReadTimeout(5000);
+				if (isset($password)) {
+					$this->driver->auth($password);
+				}
+			}
+
+			if ($this->database !== null) {
+				$this->driver->select($this->database);
+			}
+		} catch (\Exception $e) {
+			throw new CredisException('Error communicating with Redis: ' . $e->getMessage(), 0, $e);
 		}
 	}
 
@@ -153,11 +179,35 @@ class Resque_Redis
                 $args[0] = self::$defaultNamespace . $args[0];
             }
 		}
-		try {
-			return $this->driver->__call($name, $args);
-		}
-		catch(CredisException $e) {
-			return false;
+
+		$connected = true;
+		while (true) {
+			try {
+				if (!$connected) {
+					try {
+						$this->connect();
+						Resque::$redis = null;
+					} catch (CredisException $e) {
+						throw new ConnectionException($e);
+					}
+				}
+
+				return $this->driver->__call($name, $args);
+			} catch (ConnectionException $e) {
+				$connected = false;
+				usleep(Resque::DEFAULT_INTERVAL * 1000000);
+				continue;
+			} catch (Exception $e) {
+				try {
+					$this->driver->ping();
+				} catch (CredisException $e) {
+					$connected = false;
+					usleep(Resque::DEFAULT_INTERVAL * 1000000);
+					continue;
+				}
+
+				return false;
+			}
 		}
 	}
 
@@ -176,4 +226,3 @@ class Resque_Redis
         return $string;
     }
 }
-?>
