@@ -276,7 +276,7 @@ class Resque_Worker
 		$this->decrQCount($job->queue);
 		$job->updateStatus(Resque_Job_Status::STATUS_COMPLETE);
 		$this->logger->log(Psr\Log\LogLevel::NOTICE, '{job} has finished', array('job' => $job));
-		
+
 		$this->logger->log(Psr\Log\LogLevel::NOTICE, JOB_DONE_PREFIX . ' ' . strftime('%Y-%m-%d %T') . ' ' . $job->payload['id']);
 	}
 
@@ -304,10 +304,10 @@ class Resque_Worker
 			$keys = array_keys($queues);
 			shuffle($keys);
 			foreach($keys as $queue) {
-				$this->logger->log(Psr\Log\LogLevel::INFO, 'Checking {queue} for jobs ' . $queue);
+				$this->logger->log(Psr\Log\LogLevel::INFO, 'Checking {queue} for jobs ', array('queue' => $queue));
 				$job = Resque_Job::reserve($queue, $queues[$queue]);
 				if($job) {
-					$this->logger->log(Psr\Log\LogLevel::INFO, 'Found job on {queue} ' . $queue);
+					$this->logger->log(Psr\Log\LogLevel::INFO, 'Found job on {queue} ', array('queue' => $queue));
 					return $job;
 				}
 			}
@@ -356,7 +356,7 @@ class Resque_Worker
 			}
 			$ret = $redis->multi()->decr($redis->getPrefix() . "qcount:" . $queueName)->exec();
 			if($ret === false) {
-				$this->logger->log(Psr\Log\LogLevel::INFO, 'Race condition averted, waiting to decr for {queue} ' . $queue);
+				$this->logger->log(Psr\Log\LogLevel::INFO, 'Race condition averted, waiting to decr for {queue} ', array('queue' => $queueName));
 				sleep(rand(1, 2));
 				continue;
 			} else {
