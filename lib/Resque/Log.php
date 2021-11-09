@@ -6,7 +6,7 @@
  * @author		Chris Boulton <chris@bigcommerce.com>
  * @license		http://www.opensource.org/licenses/mit-license.php
  */
-class Resque_Log extends Psr\Log\AbstractLogger 
+class Resque_Log extends Psr\Log\AbstractLogger
 {
 	public $verbose;
 	public $logfile;
@@ -48,7 +48,7 @@ class Resque_Log extends Psr\Log\AbstractLogger
 		}
 
 		if (!($level === Psr\Log\LogLevel::INFO || $level === Psr\Log\LogLevel::DEBUG)) {
-			$logline = '[' . $level . '] ' . $this->interpolate($message, $context) . PHP_EOL;
+			$logline = '[' . $level . '] [' . strftime('%Y-%m-%d %T') . '] ' . $this->interpolate($message, $context) . PHP_EOL;
 			if ($this->logfile) {
 				if (fwrite($loghandle, $logline) === FALSE) {
 					fwrite(STDOUT, "Cannot write to file ($filename)" . PHP_EOL);
@@ -64,7 +64,7 @@ class Resque_Log extends Psr\Log\AbstractLogger
 	/**
 	 * Fill placeholders with the provided context
 	 * @author Jordi Boggiano j.boggiano@seld.be
-	 * 
+	 *
 	 * @param  string  $message  Message to be logged
 	 * @param  array   $context  Array of variables to use in message
 	 * @return string
@@ -76,7 +76,7 @@ class Resque_Log extends Psr\Log\AbstractLogger
 		foreach ($context as $key => $val) {
 			$replace['{' . $key . '}'] = $val;
 		}
-	
+
 		// interpolate replacement values into the message and return
 		return strtr($message, $replace);
 	}
