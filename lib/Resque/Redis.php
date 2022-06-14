@@ -23,6 +23,8 @@ class Resque_Redis
     private $server;
     private $database;
     private $driver;
+    private $logger = null;
+    private $skipWaitingForConn = false;
 
 	/**
 	 * @var array List of all commands in Redis that supply a key as their
@@ -111,7 +113,6 @@ class Resque_Redis
 	{
 		$this->server = $server;
 		$this->database = $database;
-		$this->connect();
 	}
 
 	/**
@@ -157,17 +158,18 @@ class Resque_Redis
 				$this->driver->select($this->database);
 			}
 		} catch (\Exception $e) {
-			throw new CredisException('Error communicating with Redis: ' . $e->getMessage(), 0, $e);
+            throw new CredisException('Error communicating with Redis: ' . $e->getMessage(), 0, $e);
 		}
 	}
 
-	/**
+    /**
 	 * Magic method to handle all function requests and prefix key based
 	 * operations with the {self::$defaultNamespace} key prefix.
 	 *
 	 * @param string $name The name of the method called.
 	 * @param array $args Array of supplied arguments to the method.
 	 * @return mixed Return value from Resident::call() based on the command.
+     * @throws
 	 */
 	public function __call($name, $args) {
 		if(in_array($name, $this->keyCommands)) {
@@ -180,36 +182,94 @@ class Resque_Redis
             }
 		}
 
-		$connected = true;
 		while (true) {
 			try {
-				if (!$connected) {
-					try {
-						$this->connect();
-						Resque::$redis = null;
-					} catch (CredisException $e) {
-						throw new ConnectionException($e);
-					}
+				if ($this->driver === null) {
+					$this->connect();
 				}
 
 				return $this->driver->__call($name, $args);
-			} catch (ConnectionException $e) {
-				$connected = false;
-				usleep(Resque::DEFAULT_INTERVAL * 1000000);
-				continue;
-			} catch (Exception $e) {
-				try {
-					$this->driver->ping();
-				} catch (CredisException $e) {
-					$connected = false;
-					usleep(Resque::DEFAULT_INTERVAL * 1000000);
-					continue;
+			} catch (CredisException $e) {
+				if ($this->skipWaitingForConn) {
+					throw $e;
 				}
 
+				$this->waitForConnection();
+			} catch (Exception $e) {
 				return false;
 			}
 		}
 	}
+
+    protected function waitForConnection()
+    {
+        $this->driver->close();
+        $isConnected = false;
+        $retryAttemptCount = 1;
+
+        while (!$isConnected) {
+            try {
+                $this->connect();
+                Resque::$redis = null;
+                $isConnected = true;
+                $this->log(\Psr\Log\LogLevel::WARNING, 'Successfully connected, Processing jobs.....');
+            } catch (CredisException $e) {
+                if ($retryAttemptCount > Resque::MAXIMUM_RETRY) {
+                    $this->log(\Psr\Log\LogLevel::ERROR, 'Unable to connect to redis, restarting workers.....');
+                    throw new RuntimeException('Unable to connect to redis, restarting workers.....');
+                }
+
+                $this->logRetry($e, $retryAttemptCount);
+                usleep(Resque::DEFAULT_INTERVAL * 1000000);
+                $retryAttemptCount++;
+                continue;
+            }
+        }
+    }
+
+    public function logRetry($e, $retryAttemptCount)
+    {
+        if (!$e instanceof Exception) {
+            return;
+        }
+
+        $this->log(\Psr\Log\LogLevel::WARNING, 'Unable to connect to redis, sleeping for {time} secs, Details: {msg}, Code: {code}, Type: {type}, Tried: {retry} times', array(
+            'time' => (string) Resque::DEFAULT_INTERVAL,
+            'msg' => $e->getMessage(),
+            'code' => $e->getCode(),
+            'type' => get_class($e),
+            'retry' => $retryAttemptCount,
+        ));
+    }
+
+    public function log($level, $message, $context = [])
+    {
+        $message .= ', IP: {ip}';
+        $context['ip'] = gethostname();
+        $this->getLogger()->log($level, $message, $context);
+    }
+
+    public function getLogger()
+    {
+        if ($this->logger instanceof \Psr\Log\LoggerInterface) {
+            return $this->logger;
+        }
+
+        $this->logger = new Resque_Log();
+        return $this->logger;
+    }
+
+    public function setLogger($logger)
+    {
+        $this->logger = $logger;
+        return $this;
+    }
+
+    public function setSkipWaitingForConn()
+    {
+        $this->skipWaitingForConn = true;
+        return $this;
+    }
 
     public static function getPrefix()
     {
