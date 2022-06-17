@@ -11,6 +11,7 @@ class Resque
 	const VERSION = '1.2';
 
     const DEFAULT_INTERVAL = 5;
+    const MAXIMUM_RETRY = 720;
 
 	/**
 	 * @var Resque_Redis Instance of Resque_Redis that talks to redis.
@@ -48,7 +49,7 @@ class Resque
 	 *
 	 * @return Resque_Redis Instance of Resque_Redis.
 	 */
-	public static function redis()
+	public static function redis($skipWaitingForConn = false)
 	{
 		if (self::$redis !== null) {
 			return self::$redis;
@@ -60,9 +61,13 @@ class Resque
 		}
 
 		self::$redis = new Resque_Redis($server, self::$redisDatabase);
+		self::$redis->setLogger(new Resque_Log());
+		if ($skipWaitingForConn) {
+			self::$redis->setSkipWaitingForConn();
+		}
 		return self::$redis;
 	}
-	
+
 	/**
 	 * fork() helper method for php-resque that handles issues PHP socket
 	 * and phpredis have with passing around sockets between child/parent
