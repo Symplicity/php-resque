@@ -61,10 +61,12 @@ class Resque
 		}
 
 		self::$redis = new Resque_Redis($server, self::$redisDatabase);
-		self::$redis->setLogger(new Resque_Log());
-		if ($skipWaitingForConn) {
-			self::$redis->setSkipWaitingForConn();
-		}
+
+        $workerLog = getenv('WORKER_LOG') ? : false;
+        self::$redis->setLogger(new Resque_Log(\Psr\Log\LogLevel::WARNING, $workerLog));
+        if ($skipWaitingForConn) {
+            self::$redis->setSkipWaitingForConn();
+        }
 		return self::$redis;
 	}
 
