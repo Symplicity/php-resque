@@ -106,15 +106,6 @@ if(!empty($PREFIX)) {
     Resque_Redis::prefix($PREFIX);
 }
 
-try {
-    \Resque::redis($skipWaitingForConn = true)->ping();
-} catch (\CredisException $e) {
-    $logger->log(\Psr\Log\LogLevel::ERROR, 'Restarting workers but unable to connect to redis at this time.....');
-    throw $e;
-}
-
-\Resque::$redis = null;
-
 // Start a single worker
 if($SINGLE == 1) {
     $worker = new Resque_Worker($QUEUE);
