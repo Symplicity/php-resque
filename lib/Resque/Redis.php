@@ -113,7 +113,7 @@ class Resque_Redis
 	{
 		$this->server = $server;
 		$this->database = $database;
-	}
+    }
 
 	/**
 	 * @throws CredisException
@@ -183,23 +183,23 @@ class Resque_Redis
 		}
 
 		while (true) {
-			try {
-				if ($this->driver === null) {
-					$this->connect();
-				}
+            try {
+                if ($this->driver === null) {
+                    $this->connect();
+                }
 
-				return $this->driver->__call($name, $args);
-			} catch (CredisException $e) {
-				if ($this->skipWaitingForConn) {
-					throw $e;
-				}
+                return $this->driver->__call($name, $args);
+            } catch (CredisException $e) {
+                if ($this->skipWaitingForConn) {
+                    throw $e;
+                }
 
-				$this->waitForConnection();
-			} catch (Exception $e) {
-				return false;
-			}
-		}
-	}
+                $this->waitForConnection();
+            } catch (Exception $e) {
+                return false;
+            }
+        }
+    }
 
     protected function waitForConnection()
     {
@@ -255,7 +255,8 @@ class Resque_Redis
             return $this->logger;
         }
 
-        $this->logger = new Resque_Log();
+        $workerLog = getenv('WORKER_LOG') ? : false;
+        $this->logger = new Resque_Log(\Psr\Log\LogLevel::WARNING, $workerLog);
         return $this->logger;
     }
 

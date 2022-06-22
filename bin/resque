@@ -106,7 +106,6 @@ if(!empty($PREFIX)) {
     Resque_Redis::prefix($PREFIX);
 }
 
-
 // Start a single worker
 if($SINGLE == 1) {
     $worker = new Resque_Worker($QUEUE);
