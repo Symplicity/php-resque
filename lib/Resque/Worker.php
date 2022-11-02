@@ -97,8 +97,11 @@ class Resque_Worker
 		$queues = explode(',', $queues);
 		$queueList = array();
 		foreach($queues as $queue){
-			$queueList[$queue] = $QUEUE[$queue];
+			if (isset($QUEUE[$queue])) {
+				$queueList[$queue] = $QUEUE[$queue];
+			}
 		}
+
 		$worker = new self($queueList);
 		$worker->setId($workerId);
 		return $worker;
