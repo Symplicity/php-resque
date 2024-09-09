@@ -232,8 +232,16 @@ class Resque_Worker
 					pcntl_signal_dispatch();
 					sleep(1);
 				}
-				$exitStatus = 0;
+
 				if (pcntl_wifexited($status) === true) {
+					// Job is completed, trigger completion listeners
+					$jobArgs = $job->getArguments();
+					if (!empty($jobArgs['onCompletionHandler'])) {
+						Resque_Event::trigger('onCompletion', array(
+							'job' => $job,
+						));
+					}
+
 					$exitStatus = pcntl_wexitstatus($status);
 					if($exitStatus !== 0) {
 						$job->fail(new Resque_Job_DirtyExitException(
