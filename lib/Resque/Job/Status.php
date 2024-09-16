@@ -12,6 +12,7 @@ class Resque_Job_Status
 	const STATUS_RUNNING = 2;
 	const STATUS_FAILED = 3;
 	const STATUS_COMPLETE = 4;
+	const STATUS_CANCELLED = 5;
 	const STATUS_EXPIRE_SECS = 600;
 
 	/**
@@ -92,7 +93,7 @@ class Resque_Job_Status
 		if(!$this->isTracking()) {
 			return;
 		}
-		
+
 		$now = time();
 
 		$statusPacket = array(

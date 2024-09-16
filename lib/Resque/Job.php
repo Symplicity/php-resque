@@ -251,6 +251,24 @@ class Resque_Job
 		Resque_Stat::incr('failed:' . $this->worker);
 	}
 
+	public function cancel($exception)
+	{
+		Resque_Event::trigger('onCancel', array(
+			'exception' => $exception,
+			'job' => $this,
+		));
+
+		$this->updateStatus(Resque_Job_Status::STATUS_CANCELLED, $exception);
+		Resque_Failure::create(
+			$this->payload,
+			$exception,
+			$this->worker,
+			$this->queue
+		);
+		Resque_Stat::incr('failed');
+		Resque_Stat::incr('failed:' . $this->worker);
+	}
+
 	/**
 	 * Re-queue the current job.
 	 * @return string
