@@ -37,7 +37,7 @@ pre and post jobs
 
 ## Requirements ##
 
-* PHP 5.3+
+* PHP 8.1+
 * Redis 2.2+
 * Optional but Recommended: Composer
 
